@@ -1,0 +1,16 @@
+sensor_id,timestamp,metric,value,unit
+sensor-01,2026-01-01T00:00:00Z,temperature,21.5,C
+sensor-01,2026-01-01T00:00:00Z,humidity,45,%
+sensor-01,2026-01-01T00:00:00Z,pressure,1013.2,hPa
+sensor-02,2026-01-01T00:05:00Z,temperature,71.2,F
+sensor-02,2026-01-01T00:05:00Z,humidity,52,%
+sensor-02,2026-01-01 00:05:00,pressure,101320,Pa
+sensor-03,2026-01-01T00:10:00Z,temperature,295.15,K
+sensor-03,2026-01-01T00:10:00Z,humidity,48,%
+sensor-01,2026-01-01T00:15:00Z,temperature,21.9,C
+sensor-01,2026-01-01T00:15:00Z,humidity,46,%
+sensor-02,2026-01-01T00:20:00Z,temperature,999,C
+sensor-03,not-a-timestamp,temperature,20.0,C
+sensor-04,2026-01-01T00:25:00Z,temperature,,C
+,2026-01-01T00:30:00Z,humidity,50,%
+sensor-05,2026-01-01T00:35:00Z,dewpoint,12.0,C

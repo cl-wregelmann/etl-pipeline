@@ -1,0 +1,12 @@
+# Build output
+/etl
+/bin/
+
+# Local pipeline output (SQLite database + WAL files)
+/data/*.db
+/data/*.db-shm
+/data/*.db-wal
+
+# Editor / OS
+.idea/
+.DS_Store
