@@ -1,6 +1,8 @@
 package transform
 
 import (
+	"io"
+	"log"
 	"math"
 	"testing"
 
@@ -53,5 +55,35 @@ func TestOne_RejectsBadInput(t *testing.T) {
 				t.Errorf("expected error for %s, got nil", name)
 			}
 		})
+	}
+}
+
+func TestRunParallelTransformsValidAndCountsSkipped(t *testing.T) {
+	oldOutput := log.Writer()
+	log.SetOutput(io.Discard)
+	t.Cleanup(func() {
+		log.SetOutput(oldOutput)
+	})
+
+	raws := []model.RawReading{
+		{SensorID: "sensor-01", Timestamp: "2026-01-01T00:00:00Z", Metric: "temperature", Value: "20", Unit: "C"},
+		{SensorID: "sensor-02", Timestamp: "2026-01-01T00:05:00Z", Metric: "humidity", Value: "45", Unit: "%"},
+		{SensorID: "sensor-03", Timestamp: "2026-01-01T00:10:00Z", Metric: "temperature", Value: "999", Unit: "C", Source: "bad.csv", Line: 7},
+	}
+
+	readings, skipped := RunParallel(raws, 0)
+	if skipped != 1 {
+		t.Fatalf("skipped = %d, want 1", skipped)
+	}
+	if len(readings) != 2 {
+		t.Fatalf("len(readings) = %d, want 2", len(readings))
+	}
+
+	metrics := map[string]bool{}
+	for _, reading := range readings {
+		metrics[reading.Metric] = true
+	}
+	if !metrics["temperature"] || !metrics["humidity"] {
+		t.Fatalf("metrics = %v, want temperature and humidity", metrics)
 	}
 }

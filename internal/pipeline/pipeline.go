@@ -3,11 +3,9 @@ package pipeline
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/cl-wregelmann/etl-pipeline/internal/extract"
 	"github.com/cl-wregelmann/etl-pipeline/internal/load"
-	"github.com/cl-wregelmann/etl-pipeline/internal/model"
 	"github.com/cl-wregelmann/etl-pipeline/internal/transform"
 )
 
@@ -15,6 +13,7 @@ import (
 type Options struct {
 	SourceDir string // directory of source files to read
 	DBPath    string // path to the SQLite database to write
+	Workers   int    // transport worker count;<=0 uses runtime.NumCPU()
 }
 
 // Result reports what happened during a run.
@@ -37,16 +36,8 @@ func Run(opts Options) (Result, error) {
 	}
 	res.Read = len(raw)
 
-	readings := make([]model.Reading, 0, len(raw))
-	for _, rr := range raw {
-		reading, err := transform.One(rr)
-		if err != nil {
-			res.Skipped++
-			log.Printf("skipping %s:%d: %v", rr.Source, rr.Line, err)
-			continue
-		}
-		readings = append(readings, reading)
-	}
+	readings, skipped := transform.RunParallel(raw, opts.Workers)
+	res.Skipped = skipped
 
 	loader, err := load.Open(opts.DBPath)
 	if err != nil {
