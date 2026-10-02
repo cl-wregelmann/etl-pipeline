@@ -25,9 +25,12 @@ Records that fail validation are skipped and logged; the run still completes.
 
 ## Requirements
 
-- Go 1.26 or newer (or Docker — see [Running with Docker](#running-with-docker)).
+- Go 1.26 or newer.
+- Docker with Compose v2, for the container workflow in
+  [Running with Docker](#running-with-docker). The image builds on the same
+  Go 1.26 toolchain (`golang:1.26` build stage) and packages the resulting binary.
 
-That's it — the SQLite driver is pure Go ([`modernc.org/sqlite`](https://pkg.go.dev/modernc.org/sqlite)),
+The SQLite driver is pure Go ([`modernc.org/sqlite`](https://pkg.go.dev/modernc.org/sqlite)),
 so there is no CGO toolchain or external database to install.
 
 ## Setup & running
@@ -59,7 +62,7 @@ done: read 27, skipped 6, loaded 21 -> data/etl.db
 
 ## Running with Docker
 
-No local Go toolchain is needed. The `Dockerfile` has two targets:
+The `Dockerfile` compiles the pipeline with Go 1.26 in a build stage, then packages the binary into one of two targets:
 
 | Target | Base | Use |
 |--------|------|-----|
