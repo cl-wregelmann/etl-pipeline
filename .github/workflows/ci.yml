@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Later steps run PR-controlled code; don't leave the token in .git/config.
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./...
+
+  docker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build images
+        run: |
+          docker build -t sensor-etl .
+          docker build --target dev -t sensor-etl:dev .
+
+      - name: Prod image has no shell
+        run: |
+          if docker run --rm --entrypoint sh sensor-etl -c true; then
+            echo "prod image unexpectedly contains a shell" >&2
+            exit 1
+          fi
+
+      - name: Prod smoke run (bind mount, hardened flags)
+        run: |
+          # Separate from compose's ./out so each check starts from an empty DB on a fresh checkout.
+          mkdir prod-out
+          docker run --rm \
+            -v "$PWD/data/raw:/data/in:ro" \
+            -v "$PWD/prod-out:/data/out" \
+            --user "$(id -u):$(id -g)" \
+            --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+            --network none --memory 512m --pids-limit 128 \
+            sensor-etl | tee run.log
+          grep -q 'done: read 27, skipped 6, loaded 21' run.log
+          # Query with the dev image's sqlite3 so the runner needs no extra packages.
+          test "$(docker run --rm --entrypoint sqlite3 -v "$PWD/prod-out:/db:ro" sensor-etl:dev /db/etl.db 'SELECT COUNT(*) FROM readings;')" = 21
+
+      - name: Prod smoke run (named volume)
+        run: |
+          docker run --rm -v "$PWD/data/raw:/data/in:ro" -v etl-ci:/data/out sensor-etl \
+            | grep -q 'done: read 27, skipped 6, loaded 21'
+
+      - name: Compose dev flow (exec into running container)
+        run: |
+          make up | tee up.log
+          grep -q 'done: read 27, skipped 6, loaded 21' up.log
+          test "$(docker compose exec -T etl sqlite3 /data/out/etl.db 'SELECT COUNT(*) FROM readings;')" = 21
+          docker compose exec -T etl test -w /data/out
+          docker compose exec -T etl sh -c '! touch /data/in/x'
+
+      - name: Compose teardown
+        if: always()
+        run: docker compose down

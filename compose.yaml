@@ -1,0 +1,23 @@
+# Local development. Builds the `dev` image (shell + sqlite3), runs the pipeline once,
+# then keeps the container alive so you can `docker compose exec etl sh` into it.
+services:
+  etl:
+    build:
+      context: .
+      target: dev
+    image: sensor-etl:dev
+    # Run as the host user so files in ./out stay owned by you on Linux (root + cap_drop
+    # can't write to a user-owned dir). UID/GID aren't exported by default shells.
+    user: "${UID:-1000}:${GID:-1000}"
+    volumes:
+      - ./data/raw:/data/in:ro
+      - ./out:/data/out
+    entrypoint: ["/bin/sh", "-c"]
+    # `;` not `&&`: stay up even if the pipeline fails, so you can exec in and debug it.
+    command: ["etl -source /data/in -db /data/out/etl.db; exec sleep infinity"]
+    init: true
+    # The pipeline reads whole CSVs into memory; cap it so a huge input can't take down the host.
+    mem_limit: 512m
+    pids_limit: 128
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
