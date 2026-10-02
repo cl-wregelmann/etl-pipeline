@@ -25,7 +25,7 @@ Records that fail validation are skipped and logged; the run still completes.
 
 ## Requirements
 
-- Go 1.26 or newer.
+- Go 1.26 or newer (or Docker — see [Running with Docker](#running-with-docker)).
 
 That's it — the SQLite driver is pure Go ([`modernc.org/sqlite`](https://pkg.go.dev/modernc.org/sqlite)),
 so there is no CGO toolchain or external database to install.
@@ -73,6 +73,8 @@ persists after the container is removed.
 ### Local (Docker Compose)
 
 ```bash
+mkdir -p out
+export UID GID="$(id -g)"           # Linux: so ./out stays owned by you
 docker compose up -d --build        # builds `dev`, runs the pipeline, stays up
 docker compose logs etl             # -> done: read 27, skipped 6, loaded 21 -> /data/out/etl.db
 docker compose exec etl sh          # shell into the container
@@ -82,7 +84,9 @@ docker compose down                 # ./out/etl.db stays on the host
 ```
 
 Compose mounts `./data/raw` read-only as the input and `./out` as the output.
-Every `up` runs the pipeline again and **appends** to the existing database, so
+The container stays up even if the pipeline fails, so you can shell in and
+debug; check `docker compose logs etl` for the result. Every `up` or restart
+runs the pipeline again and **appends** to the existing database, so
 run `rm -rf out` first if you want a clean start.
 
 ### Production image
