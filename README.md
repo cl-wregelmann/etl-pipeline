@@ -87,10 +87,11 @@ docker compose down                 # ./out/etl.db stays on the host
 ```
 
 Compose mounts `./data/raw` read-only as the input and `./out` as the output.
-The container stays up even if the pipeline fails, so you can shell in and
-debug; check `docker compose logs etl` for the result. Every `up` or restart
-runs the pipeline again and **appends** to the existing database, so
-run `rm -rf out` first if you want a clean start.
+The service is capped at 512 MB of memory and 128 processes. The container
+stays up even if the pipeline fails, so you can shell in and debug; check
+`docker compose logs etl` for the result. Every `up` or restart runs the
+pipeline again and **appends** to the existing database, so run
+`docker compose down && rm -r out` first if you want a clean start.
 
 ### Production image
 
@@ -102,12 +103,23 @@ docker run --rm \
   -v "$PWD/out:/data/out" \
   --user "$(id -u):$(id -g)" \
   --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+  --network none --memory 512m --pids-limit 128 \
   sensor-etl
 ```
 
-`--user` lets the non-root container write to a bind-mounted host directory on
-Linux. You can also use a named volume instead (`-v etl-data:/data/out`).
-To override a flag, append it, e.g. `sensor-etl -db /data/out/other.db`.
+- `--user` lets the non-root container write to a bind-mounted host directory
+  on Linux. Never pass `--user 0` (or run this under `sudo` so `id -u` is 0);
+  that discards the image's non-root hardening. With a named volume
+  (`-v etl-data:/data/out`) you can drop `--user` entirely.
+- The remaining flags are hardening: the pipeline needs no network, no Linux
+  capabilities, and no writable filesystem outside `/data/out`. It reads each
+  CSV fully into memory, so size `--memory` to your largest input.
+- The image declares `VOLUME /data/out`, which keeps `--read-only` working even
+  if you forget the output mount, but then the database lands in an anonymous
+  volume that `--rm` deletes. Always mount `/data/out`.
+- Run it as a one-shot job (no restart policy). Each run appends, so an
+  automatic restart would load the same readings again.
+- To override a flag, append it, e.g. `sensor-etl -db /data/out/other.db`.
 
 ## Inspecting the results
 

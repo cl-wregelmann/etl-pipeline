@@ -16,5 +16,8 @@ services:
     # `;` not `&&`: stay up even if the pipeline fails, so you can exec in and debug it.
     command: ["etl -source /data/in -db /data/out/etl.db; exec sleep infinity"]
     init: true
+    # The pipeline reads whole CSVs into memory; cap it so a huge input can't take down the host.
+    mem_limit: 512m
+    pids_limit: 128
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
