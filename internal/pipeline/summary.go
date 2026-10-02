@@ -16,11 +16,14 @@ type ReasonCount struct {
 }
 
 // SortedReasons returns the skip reasons ordered by count descending, then by
-// reason name ascending. It never returns nil.
+// reason name ascending. Reasons with a zero count are left out, matching the
+// JSON report. It never returns nil.
 func (r Result) SortedReasons() []ReasonCount {
 	out := make([]ReasonCount, 0, len(r.SkipReasons))
 	for reason, n := range r.SkipReasons {
-		out = append(out, ReasonCount{Reason: reason, Count: n})
+		if n > 0 {
+			out = append(out, ReasonCount{Reason: reason, Count: n})
+		}
 	}
 	slices.SortFunc(out, func(a, b ReasonCount) int {
 		return cmp.Or(cmp.Compare(b.Count, a.Count), cmp.Compare(a.Reason, b.Reason))

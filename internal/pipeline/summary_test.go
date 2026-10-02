@@ -20,7 +20,8 @@ func TestSortedReasons(t *testing.T) {
 			map[transform.Reason]int{"unknown_metric": 1, "bad_value": 1, "missing_sensor_id": 1},
 			[]ReasonCount{{"bad_value", 1}, {"missing_sensor_id", 1}, {"unknown_metric", 1}},
 		},
-		"empty": {map[transform.Reason]int{}, []ReasonCount{}},
+		"empty":       {map[transform.Reason]int{}, []ReasonCount{}},
+		"zero counts": {map[transform.Reason]int{"bad_value": 0, "out_of_range": 2}, []ReasonCount{{"out_of_range", 2}}},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -48,6 +49,10 @@ func TestOneLine(t *testing.T) {
 		"no skips": {
 			Result{Read: 21, Loaded: 21, SkipReasons: map[transform.Reason]int{}},
 			"done: read 21, skipped 0, loaded 21 -> data/etl.db report: data/run-report.json",
+		},
+		"zero-count reason omitted": {
+			Result{Read: 2, Skipped: 2, SkipReasons: map[transform.Reason]int{"bad_value": 0, "out_of_range": 2}},
+			"done: read 2, skipped 2, loaded 0 -> data/etl.db (skipped: out_of_range=2) report: data/run-report.json",
 		},
 		"all skipped with other": {
 			Result{Read: 4, Skipped: 4, SkipReasons: map[transform.Reason]int{"unknown_unit": 3, ReasonOther: 1}},

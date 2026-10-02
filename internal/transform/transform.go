@@ -10,8 +10,6 @@ import (
 	"github.com/cl-wregelmann/etl-pipeline/internal/model"
 )
 
-// knownMetrics lists the metrics the pipeline understands. Anything else is
-// treated as invalid.
 // Reason is a stable, machine-readable category for why a record was rejected.
 // Reason values are part of the run report's public contract: renaming or
 // removing one is a breaking change.
@@ -41,6 +39,8 @@ func invalid(r Reason, format string, args ...any) error {
 	return &ValidationError{Reason: r, Msg: fmt.Sprintf(format, args...)}
 }
 
+// knownMetrics lists the metrics the pipeline understands. Anything else is
+// treated as invalid.
 var knownMetrics = map[string]bool{
 	"temperature": true,
 	"humidity":    true,

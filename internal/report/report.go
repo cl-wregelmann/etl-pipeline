@@ -82,22 +82,24 @@ func WriteFile(path string, r Report) (err error) {
 	}
 	defer func() {
 		if err != nil {
-			tmp.Close()
-			os.Remove(tmp.Name())
+			// Best-effort cleanup; the original error is what the caller needs.
+			_ = tmp.Close()
+			_ = os.Remove(tmp.Name())
 		}
 	}()
 
 	if _, err = tmp.Write(data); err != nil {
 		return err
 	}
+	// CreateTemp uses 0o600; the report is meant to be read by downstream
+	// tools. Chmod through the open handle so the path can't be swapped first.
+	if err = tmp.Chmod(0o644); err != nil { // #nosec G302 -- report is not sensitive and must be world-readable
+		return err
+	}
 	if err = tmp.Sync(); err != nil {
 		return err
 	}
 	if err = tmp.Close(); err != nil {
-		return err
-	}
-	// CreateTemp uses 0o600; the report is meant to be read by downstream tools.
-	if err = os.Chmod(tmp.Name(), 0o644); err != nil { // #nosec G302 -- report is not sensitive and must be world-readable
 		return err
 	}
 	return os.Rename(tmp.Name(), path)
