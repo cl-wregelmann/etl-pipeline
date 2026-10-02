@@ -10,3 +10,6 @@
 # Editor / OS
 .idea/
 .DS_Store
+
+# Docker pipeline output (bind-mounted from the container)
+/out/

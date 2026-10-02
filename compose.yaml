@@ -1,0 +1,16 @@
+# Local development. Builds the `dev` image (shell + sqlite3), runs the pipeline once,
+# then keeps the container alive so you can `docker compose exec etl sh` into it.
+services:
+  etl:
+    build:
+      context: .
+      target: dev
+    image: sensor-etl:dev
+    volumes:
+      - ./data/raw:/data/in:ro
+      - ./out:/data/out
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["etl -source /data/in -db /data/out/etl.db && exec sleep infinity"]
+    init: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]

@@ -57,6 +57,51 @@ Expected output against the sample data:
 done: read 27, skipped 6, loaded 21 -> data/etl.db
 ```
 
+## Running with Docker
+
+No local Go toolchain is needed. The `Dockerfile` has two targets:
+
+| Target | Base | Use |
+|--------|------|-----|
+| `prod` (default) | `distroless/static`, non-root, no shell | deployment |
+| `dev` | `alpine` + `sqlite3` CLI | local development / debugging |
+
+Inside the container the pipeline reads CSVs from `/data/in` and writes the
+database to `/data/out/etl.db`. Mount host directories there so the database
+persists after the container is removed.
+
+### Local (Docker Compose)
+
+```bash
+docker compose up -d --build        # builds `dev`, runs the pipeline, stays up
+docker compose logs etl             # -> done: read 27, skipped 6, loaded 21 -> /data/out/etl.db
+docker compose exec etl sh          # shell into the container
+#   ls /data/in /data/out
+#   sqlite3 /data/out/etl.db "SELECT * FROM readings LIMIT 10;"
+docker compose down                 # ./out/etl.db stays on the host
+```
+
+Compose mounts `./data/raw` read-only as the input and `./out` as the output.
+Every `up` runs the pipeline again and **appends** to the existing database, so
+run `rm -rf out` first if you want a clean start.
+
+### Production image
+
+```bash
+docker build -t sensor-etl .
+mkdir -p out
+docker run --rm \
+  -v "$PWD/data/raw:/data/in:ro" \
+  -v "$PWD/out:/data/out" \
+  --user "$(id -u):$(id -g)" \
+  --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+  sensor-etl
+```
+
+`--user` lets the non-root container write to a bind-mounted host directory on
+Linux. You can also use a named volume instead (`-v etl-data:/data/out`).
+To override a flag, append it, e.g. `sensor-etl -db /data/out/other.db`.
+
 ## Inspecting the results
 
 If you have the `sqlite3` CLI installed:

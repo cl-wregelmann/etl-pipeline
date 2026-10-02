@@ -1,0 +1,6 @@
+# Allowlist: only what the Go build needs, so local files (.serena, .env, editor dirs) never enter the build context.
+*
+!go.mod
+!go.sum
+!cmd/
+!internal/
