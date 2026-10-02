@@ -5,7 +5,9 @@
 //	etl [flags]
 //
 // It reads every *.csv file in the source directory, validates and normalizes
-// each reading, and loads the results into a SQLite database.
+// each reading, and loads the results into a SQLite database. After a
+// successful run it writes a JSON run report (see package report) and prints a
+// one-line summary to stdout.
 package main
 
 import (
@@ -15,6 +17,7 @@ import (
 	"os"
 
 	"github.com/cl-wregelmann/etl-pipeline/internal/pipeline"
+	"github.com/cl-wregelmann/etl-pipeline/internal/report"
 )
 
 func main() {
@@ -22,16 +25,25 @@ func main() {
 
 	source := flag.String("source", "data/raw", "directory of source CSV files to ingest")
 	db := flag.String("db", "data/etl.db", "path to the SQLite database to write")
+	reportPath := flag.String("report", "data/run-report.json", "path to write the JSON run report")
 	flag.Parse()
 
-	res, err := pipeline.Run(pipeline.Options{
+	opts := pipeline.Options{
 		SourceDir: *source,
 		DBPath:    *db,
-	})
+	}
+	res, err := pipeline.Run(opts)
 	if err != nil {
 		log.Printf("pipeline failed: %v", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("done: read %d, skipped %d, loaded %d -> %s\n", res.Read, res.Skipped, res.Loaded, *db)
+	// A missing report breaks the downstream contract, so the run fails even
+	// though the load has already committed.
+	if err := report.WriteFile(*reportPath, report.New(res, opts)); err != nil {
+		log.Printf("pipeline failed: write report (database already loaded): %v", err)
+		os.Exit(1)
+	}
+
+	fmt.Println(res.OneLine(*db, *reportPath))
 }

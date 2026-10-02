@@ -10,6 +10,35 @@ import (
 	"github.com/cl-wregelmann/etl-pipeline/internal/model"
 )
 
+// Reason is a stable, machine-readable category for why a record was rejected.
+// Reason values are part of the run report's public contract: renaming or
+// removing one is a breaking change.
+type Reason string
+
+// Rejection reasons returned in ValidationError.Reason.
+const (
+	ReasonUnknownMetric   Reason = "unknown_metric"
+	ReasonMissingSensorID Reason = "missing_sensor_id"
+	ReasonBadTimestamp    Reason = "bad_timestamp"
+	ReasonBadValue        Reason = "bad_value"
+	ReasonUnknownUnit     Reason = "unknown_unit"
+	ReasonOutOfRange      Reason = "out_of_range"
+)
+
+// ValidationError is returned by One when a raw record is rejected. Reason
+// categorizes the rejection; Msg is the human-readable detail.
+type ValidationError struct {
+	Reason Reason
+	Msg    string
+}
+
+// Error returns the human-readable message, without the reason.
+func (e *ValidationError) Error() string { return e.Msg }
+
+func invalid(r Reason, format string, args ...any) error {
+	return &ValidationError{Reason: r, Msg: fmt.Sprintf(format, args...)}
+}
+
 // knownMetrics lists the metrics the pipeline understands. Anything else is
 // treated as invalid.
 var knownMetrics = map[string]bool{
@@ -46,12 +75,12 @@ func plausibleRange(metric string) (min, max float64) {
 func One(raw model.RawReading) (model.Reading, error) {
 	metric := strings.ToLower(strings.TrimSpace(raw.Metric))
 	if !knownMetrics[metric] {
-		return model.Reading{}, fmt.Errorf("unknown metric %q", raw.Metric)
+		return model.Reading{}, invalid(ReasonUnknownMetric, "unknown metric %q", raw.Metric)
 	}
 
 	sensorID := strings.TrimSpace(raw.SensorID)
 	if sensorID == "" {
-		return model.Reading{}, fmt.Errorf("missing sensor_id")
+		return model.Reading{}, invalid(ReasonMissingSensorID, "missing sensor_id")
 	}
 
 	ts, err := parseTimestamp(raw.Timestamp)
@@ -61,7 +90,7 @@ func One(raw model.RawReading) (model.Reading, error) {
 
 	value, err := strconv.ParseFloat(strings.TrimSpace(raw.Value), 64)
 	if err != nil {
-		return model.Reading{}, fmt.Errorf("invalid value %q", raw.Value)
+		return model.Reading{}, invalid(ReasonBadValue, "invalid value %q", raw.Value)
 	}
 
 	value, unit, err := normalizeUnit(metric, value, raw.Unit)
@@ -71,7 +100,7 @@ func One(raw model.RawReading) (model.Reading, error) {
 
 	min, max := plausibleRange(metric)
 	if value < min || value > max {
-		return model.Reading{}, fmt.Errorf("%s value %.2f%s out of range [%.0f, %.0f]", metric, value, unit, min, max)
+		return model.Reading{}, invalid(ReasonOutOfRange, "%s value %.2f%s out of range [%.0f, %.0f]", metric, value, unit, min, max)
 	}
 
 	return model.Reading{
@@ -90,7 +119,7 @@ func parseTimestamp(s string) (time.Time, error) {
 			return t, nil
 		}
 	}
-	return time.Time{}, fmt.Errorf("unparseable timestamp %q", s)
+	return time.Time{}, invalid(ReasonBadTimestamp, "unparseable timestamp %q", s)
 }
 
 // normalizeUnit converts a value to the canonical unit for its metric and
@@ -107,13 +136,13 @@ func normalizeUnit(metric string, value float64, rawUnit string) (float64, strin
 		case "K":
 			return value - 273.15, "C", nil
 		}
-		return 0, "", fmt.Errorf("unknown temperature unit %q", rawUnit)
+		return 0, "", invalid(ReasonUnknownUnit, "unknown temperature unit %q", rawUnit)
 	case "humidity":
 		switch unit {
 		case "%", "":
 			return value, "%", nil
 		}
-		return 0, "", fmt.Errorf("unknown humidity unit %q", rawUnit)
+		return 0, "", invalid(ReasonUnknownUnit, "unknown humidity unit %q", rawUnit)
 	case "pressure":
 		switch strings.ToLower(unit) {
 		case "hpa", "":
@@ -123,7 +152,7 @@ func normalizeUnit(metric string, value float64, rawUnit string) (float64, strin
 		case "kpa":
 			return value * 10, "hPa", nil
 		}
-		return 0, "", fmt.Errorf("unknown pressure unit %q", rawUnit)
+		return 0, "", invalid(ReasonUnknownUnit, "unknown pressure unit %q", rawUnit)
 	}
-	return 0, "", fmt.Errorf("unknown metric %q", metric)
+	return 0, "", invalid(ReasonUnknownMetric, "unknown metric %q", metric)
 }
