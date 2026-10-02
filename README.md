@@ -76,21 +76,24 @@ persists after the container is removed.
 ### Local (Docker Compose)
 
 ```bash
-mkdir -p out
-export UID GID="$(id -g)"           # Linux: so ./out stays owned by you
-docker compose up -d --build        # builds `dev`, runs the pipeline, stays up
-docker compose logs etl             # -> done: read 27, skipped 6, loaded 21 -> /data/out/etl.db
+make up                             # builds `dev`, runs the pipeline, stays up
+                                    # -> done: read 27, skipped 6, loaded 21 -> /data/out/etl.db
 docker compose exec etl sh          # shell into the container
 #   ls /data/in /data/out
 #   sqlite3 /data/out/etl.db "SELECT * FROM readings LIMIT 10;"
 docker compose down                 # ./out/etl.db stays on the host
 ```
 
+`make up` creates `./out` and passes your UID/GID so the database stays owned
+by you on Linux. To call Compose directly instead, run
+`mkdir -p out && export UID GID="$(id -g)"` first.
+
 Compose mounts `./data/raw` read-only as the input and `./out` as the output.
 The service is capped at 512 MB of memory and 128 processes. The container
 stays up even if the pipeline fails, so you can shell in and debug; check
-`docker compose logs etl` for the result. Every `up` or restart runs the
-pipeline again and **appends** to the existing database, so run
+`docker compose logs etl` for the result. Whenever the container is created
+(e.g. `make up` after a code change) or restarted, the pipeline runs again and
+**appends** to the existing database, so run
 `docker compose down && rm -r out` first if you want a clean start.
 
 ### Production image

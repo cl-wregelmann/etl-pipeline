@@ -69,11 +69,8 @@ jobs:
 
       - name: Compose dev flow (exec into running container)
         run: |
-          mkdir out
-          export UID GID="$(id -g)"
-          docker compose up -d --build
-          timeout 60 sh -c 'until docker compose logs etl | grep -q "done:"; do sleep 1; done'
-          docker compose logs etl
+          make up | tee up.log
+          grep -q 'done: read 27, skipped 6, loaded 21' up.log
           test "$(docker compose exec -T etl sqlite3 /data/out/etl.db 'SELECT COUNT(*) FROM readings;')" = 21
           docker compose exec -T etl test -w /data/out
           docker compose exec -T etl sh -c '! touch /data/in/x'
